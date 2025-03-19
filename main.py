@@ -92,7 +92,7 @@ async def submit_view(
     result = await collection.insert_one(view)
     view["_id"] = str(result.inserted_id)
     await socket_manager.emit("new_view", view)  # Broadcast to WebSocket clients
-    return {"message": "View submitted successfully", "id": view["_id"], "media_url": view["file_url"]}
+    return {"message": "View submitted successfully", "id": view["_id"], "media_url": file_url}
 
 @app.post("/upvote/{view_id}")
 async def upvote_view(view_id: str):
