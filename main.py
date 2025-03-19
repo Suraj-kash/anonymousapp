@@ -77,7 +77,7 @@ async def submit_view(
         "upvotes": 0,
         "downvotes": 0,
         "comments": [],
-        "media_url": None
+        "media_url": []
     }
 
     file_url = None
@@ -90,10 +90,15 @@ async def submit_view(
         s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, unique_filename)
 
     file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"
+    url = await get_media(unique_filename)
+    media_url = url["url"]
+    view["media_url"].append(media_url)
     result = await collection.insert_one(view)
     view["_id"] = str(result.inserted_id)
     await socket_manager.emit("new_view", view)  # Broadcast to WebSocket clients
-    return {"message": "View submitted successfully", "id": view["_id"], "media_url": unique_filename}
+    
+    return {"message": "View submitted successfully", "id": view["_id"], "media_url": media_url}
+
 
 @app.post("/upvote/{view_id}")
 async def upvote_view(view_id: str):
