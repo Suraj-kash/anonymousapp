@@ -19,7 +19,13 @@ origins = [
     "http://127.0.0.1",
     "http://127.0.0.1:5500"  # If running HTML locally
 ]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://anonymousapp.d1g6tvh35amdjp.amplifyapp.com"],  # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 socket_manager = SocketManager(app)  # WebSocket instance
 
 
