@@ -25,6 +25,7 @@ s3_client = boto3.client(
     "s3",
     aws_access_key_id=AWS_ACCESS_KEY,
     aws_secret_access_key=AWS_SECRET_KEY,
+    region_name="ap-south-1"  
 )
 
 
@@ -88,11 +89,11 @@ async def submit_view(
         unique_filename = f"{uuid4().hex}.{file_ext}"
         s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, unique_filename)
 
-        file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"  # Public URL
+    file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"
     result = await collection.insert_one(view)
     view["_id"] = str(result.inserted_id)
     await socket_manager.emit("new_view", view)  # Broadcast to WebSocket clients
-    return {"message": "View submitted successfully", "id": view["_id"], "media_url": file_url}
+    return {"message": "View submitted successfully", "id": view["_id"], "media_url": unique_filename}
 
 @app.post("/upvote/{view_id}")
 async def upvote_view(view_id: str):
@@ -225,14 +226,20 @@ async def get_view(view_id: str):
         raise HTTPException(status_code=404, detail="View not found")
     return serialize_document(view)
 
-@app.get("/media/{filename}")
-async def get_media(filename: str):
-    """Serve uploaded images and videos."""
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    return FileResponse(file_path)
+S3_REGION = "ap-south-1"
+S3_BASE_URL = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/"
+@app.get("/media/{unique_filename}")
+async def get_media(unique_filename: str):
+    """Generate a pre-signed URL for accessing S3 media."""
+    try:
+        presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": S3_BUCKET_NAME, "Key": unique_filename},
+            ExpiresIn=3600,  # URL expires in 1 hour
+        )
+        return {"url": presigned_url}
+    except NoCredentialsError:
+        raise HTTPException(status_code=500, detail="AWS credentials not found")
 
 class ConnectionManager:
     def __init__(self):
