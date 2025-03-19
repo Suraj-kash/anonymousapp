@@ -241,14 +241,10 @@ socket_manager = ConnectionManager()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await socket_manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        await socket_manager.disconnect(websocket)
-
-
+    await websocket.accept()
+    while True:
+        data = await websocket.receive_text()
+        await websocket.send_text(f"Message received: {data}")
 
 if __name__ == "__main__":
     import uvicorn
