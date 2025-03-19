@@ -11,8 +11,21 @@ from fastapi.responses import FileResponse
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+import boto3
+from uuid import uuid4 
 
 app = FastAPI()
+
+# AWS S3 Configuration
+AWS_ACCESS_KEY = "AKIAQ75LUUKN35YJFEYR"
+AWS_SECRET_KEY = "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"
+S3_BUCKET_NAME = "anonymous-app"
+
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY,
+)
 
 
 app.add_middleware(
@@ -66,23 +79,20 @@ async def submit_view(
         "media_url": None
     }
 
+    file_url = None
     if file:
-        file_ext = file.filename.split(".")[-1].lower()
+        file_ext = file.filename.split(".")[-1]
         if file_ext not in ["jpg", "jpeg", "png", "mp4", "webm"]:
             raise HTTPException(status_code=400, detail="Invalid file type")
 
-        file_path = f"{UPLOAD_DIR}/{datetime.utcnow().timestamp()}_{file.filename}"
-        with open(file_path, "wb") as buffer:
-            buffer.write(await file.read())
+        unique_filename = f"{uuid4().hex}.{file_ext}"
+        s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, unique_filename)
 
-        view["media_url"] = file_path  # Save file path
-
+        file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"  # Public URL
     result = await collection.insert_one(view)
     view["_id"] = str(result.inserted_id)
-
     await socket_manager.emit("new_view", view)  # Broadcast to WebSocket clients
-
-    return {"message": "View submitted successfully", "id": view["_id"], "media_url": view["media_url"]}
+    return {"message": "View submitted successfully", "id": view["_id"], "media_url": view["file_url"]}
 
 @app.post("/upvote/{view_id}")
 async def upvote_view(view_id: str):
