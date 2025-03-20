@@ -91,13 +91,12 @@ async def submit_view(
 
     file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"
     url = await get_media(unique_filename)
-    media_url = url["url"]
-    view["media_url"].append(media_url)
+    view["media_url"].append(file_url)
     result = await collection.insert_one(view)
     view["_id"] = str(result.inserted_id)
     await socket_manager.emit("new_view", view)  # Broadcast to WebSocket clients
     
-    return {"message": "View submitted successfully", "id": view["_id"], "media_url": media_url}
+    return {"message": "View submitted successfully", "id": view["_id"], "media_url": file_url}
 
 
 @app.post("/upvote/{view_id}")
@@ -230,21 +229,6 @@ async def get_view(view_id: str):
     if not view:
         raise HTTPException(status_code=404, detail="View not found")
     return serialize_document(view)
-
-S3_REGION = "ap-south-1"
-S3_BASE_URL = f"https://{S3_BUCKET_NAME}.s3.{S3_REGION}.amazonaws.com/"
-@app.get("/media/{unique_filename}")
-async def get_media(unique_filename: str):
-    """Generate a pre-signed URL for accessing S3 media."""
-    try:
-        presigned_url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": S3_BUCKET_NAME, "Key": unique_filename},
-            ExpiresIn=3600,  # URL expires in 1 hour
-        )
-        return {"url": presigned_url}
-    except NoCredentialsError:
-        raise HTTPException(status_code=500, detail="AWS credentials not found")
 
 class ConnectionManager:
     def __init__(self):
