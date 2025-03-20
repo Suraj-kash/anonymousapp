@@ -62,7 +62,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)  # Create upload directory if not exists
 
 @app.post("/submit")
 async def submit_view(
-    
     text: str = Form(...),
     file: UploadFile = File(None)
 ):
@@ -80,24 +79,36 @@ async def submit_view(
         "media_url": []
     }
 
-    file_url = None
+    # ✅ Check if a file is uploaded before proceeding
     if file:
-        file_ext = file.filename.split(".")[-1]
-        if file_ext not in ["jpg", "jpeg", "png", "mp4", "webm"]:
+        file_ext = file.filename.split(".")[-1].lower()
+        allowed_extensions = {"jpg", "jpeg", "png", "mp4", "webm"}
+        
+        if file_ext not in allowed_extensions:
             raise HTTPException(status_code=400, detail="Invalid file type")
 
+        # Generate a unique filename
         unique_filename = f"{uuid4().hex}.{file_ext}"
+        
+        # Upload to S3
         s3_client.upload_fileobj(file.file, S3_BUCKET_NAME, unique_filename)
+        
+        # ✅ Generate file URL only if file exists
+        file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"
+        view["media_url"].append(file_url)
 
-    file_url = f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{unique_filename}"
-    url = await get_media(unique_filename)
-    view["media_url"].append(file_url)
+    # ✅ Save the view in the database
     result = await collection.insert_one(view)
     view["_id"] = str(result.inserted_id)
+
+    # ✅ Send a real-time update via WebSockets
     await socket_manager.emit("new_view", view)  # Broadcast to WebSocket clients
     
-    return {"message": "View submitted successfully", "id": view["_id"], "media_url": file_url}
-
+    return {
+        "message": "View submitted successfully",
+        "id": view["_id"],
+        "media_url": view["media_url"]
+    }
 
 @app.post("/upvote/{view_id}")
 async def upvote_view(view_id: str):
