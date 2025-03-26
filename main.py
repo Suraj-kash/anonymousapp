@@ -227,11 +227,10 @@ def serialize_document(doc):
 
 # API to get all views
 @app.get("/views")
-async def get_views(page: int = 1, page_size: int = 10):
-    """Fetch views with pagination."""
-    skip = (page - 1) * page_size  # Calculate how many to skip
-    views = await collection.find().sort("timestamp", -1).skip(skip).limit(page_size).to_list(length=page_size)
-    return {"page": page, "views": [serialize_document(view) for view in views]}
+async def get_views():
+    """Fetch all views without pagination."""
+    views = await collection.find().sort("timestamp", -1).to_list(length=None)
+    return {"views": [serialize_document(view) for view in views]}
 
 @app.get("/views/{view_id}")
 async def get_view(view_id: str):
